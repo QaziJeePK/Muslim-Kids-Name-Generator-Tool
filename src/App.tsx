@@ -47,6 +47,7 @@ export default function App() {
   const [favorites, setFavorites] = useState<NameResult[]>([]);
   const [copiedName, setCopiedName] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState(20);
+  const [error, setError] = useState<string | null>(null);
 
   // Load favorites from local storage
   useEffect(() => {
@@ -67,8 +68,15 @@ export default function App() {
 
   const generateNames = async (append = false) => {
     setLoading(true);
+    setError(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = process.env.GEMINI_API_KEY;
+      
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
+        throw new Error("API Key is missing. Please ensure GEMINI_API_KEY is set in your environment variables (Vercel/cPanel).");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const prompt = `Generate ${batchSize} beautiful and meaningful Muslim baby names.
       ${gender !== 'Both' ? `Gender: ${gender}` : ''}
@@ -101,14 +109,19 @@ export default function App() {
         }
       });
 
-      const data = JSON.parse(response.text || "[]");
+      if (!response.text) {
+        throw new Error("No response received from AI. Please try again.");
+      }
+
+      const data = JSON.parse(response.text);
       if (append) {
         setResults(prev => [...prev, ...data]);
       } else {
         setResults(data);
       }
-    } catch (error) {
-      console.error("Generation failed:", error);
+    } catch (err: any) {
+      console.error("Generation failed:", err);
+      setError(err.message || "An unexpected error occurred. Please check your connection and API key.");
     } finally {
       setLoading(false);
     }
@@ -309,6 +322,19 @@ export default function App() {
                 </>
               )}
             </button>
+
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs leading-relaxed"
+              >
+                <p className="font-bold mb-1 flex items-center gap-1">
+                  <Info className="w-3 h-3" /> Error
+                </p>
+                {error}
+              </motion.div>
+            )}
           </div>
 
           {/* Favorites Sidebar (Desktop) */}
