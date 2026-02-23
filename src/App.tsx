@@ -211,9 +211,9 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="text-5xl sm:text-6xl serif font-medium text-emerald-900 mb-4 tracking-tight"
+          className="text-4xl sm:text-6xl serif font-medium text-emerald-900 mb-4 tracking-tight"
         >
-          Noor Names
+          Muslim Baby Names Generator
         </motion.h1>
         <motion.p 
           initial={{ opacity: 0 }}
@@ -221,7 +221,7 @@ export default function App() {
           transition={{ delay: 0.3 }}
           className="text-stone-600 text-lg serif italic"
         >
-          Discover beautiful, meaningful names for your little one, inspired by tradition and light.
+          Discover beautiful, meaningful Islamic names for your little one, inspired by tradition and light.
         </motion.p>
       </header>
 
@@ -514,6 +514,46 @@ export default function App() {
           )}
         </section>
       </main>
+
+      {/* SEO Informational Section */}
+      <section className="mt-24 w-full max-w-4xl space-y-12 px-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          <div className="space-y-4">
+            <h2 className="text-3xl serif font-bold text-emerald-900">Choosing the Perfect Muslim Baby Name</h2>
+            <p className="text-stone-600 leading-relaxed">
+              In Islam, giving a child a beautiful and meaningful name is considered a primary duty of parents. A name is not just a label; it's a prayer, an identity, and a connection to one's heritage. Our <strong>Muslim Baby Names Generator</strong> uses advanced AI to help you find names that are linguistically accurate and spiritually significant.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-3xl serif font-bold text-emerald-900">Why Meaning Matters</h2>
+            <p className="text-stone-600 leading-relaxed">
+              The Prophet Muhammad (peace be upon him) said: "On the Day of Resurrection, you will be called by your names and by your fathers' names, so give yourselves good names." Whether you are looking for <strong>Islamic boy names</strong> or <strong>Islamic girl names</strong>, the meaning behind the name carries weight and blessings.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50/50 rounded-3xl p-8 sm:p-12 border border-emerald-100">
+          <h2 className="text-3xl serif font-bold text-emerald-900 mb-8 text-center">Frequently Asked Questions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <h3 className="font-bold text-emerald-800">What are the best Muslim baby names?</h3>
+              <p className="text-sm text-stone-600">The best names are those that have positive meanings, such as names of the Prophets, companions of the Prophet, or names that reflect the attributes of Allah (with 'Abd' prefixed).</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-emerald-800">Can I generate names by letter?</h3>
+              <p className="text-sm text-stone-600">Yes! Our tool allows you to filter by starting letter, helping you follow family traditions or personal preferences.</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-emerald-800">Are these names from the Quran?</h3>
+              <p className="text-sm text-stone-600">Many of the names generated are found in the Quran or have roots in Quranic Arabic, ensuring they carry deep spiritual significance.</p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-emerald-800">How many names can I generate?</h3>
+              <p className="text-sm text-stone-600">You can generate batches of up to 50 names at a time and keep loading more until you find the perfect one for your child.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Mobile Favorites */}
       <div className="lg:hidden mt-12 w-full max-w-2xl px-4">
