@@ -48,6 +48,7 @@ export default function App() {
   const [copiedName, setCopiedName] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState(20);
   const [error, setError] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Load favorites from local storage
   useEffect(() => {
@@ -69,74 +70,105 @@ export default function App() {
   const generateNames = async (append = false) => {
     setLoading(true);
     setError(null);
-    try {
-      // Check both standard Vite and the process.env shim
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
-        throw new Error("API Key is missing. Please ensure VITE_GEMINI_API_KEY is set in your Vercel/cPanel environment variables.");
-      }
+    
+    const maxRetries = 3;
+    let retryCount = 0;
 
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const prompt = `Generate ${batchSize} beautiful and meaningful Muslim baby names.
-      ${gender !== 'Both' ? `Gender: ${gender}` : ''}
-      ${startingLetter ? `Starting with the letter: ${startingLetter}` : ''}
-      ${theme ? `Theme/Meaning preference: ${theme}` : ''}
-      
-      Provide the names in a structured format including the Arabic/Original script, transliteration, meaning, origin (e.g., Arabic, Persian, Turkish), and a brief note on its significance or historical context. 
-      Ensure the names are unique and diverse.`;
+    const attemptGeneration = async (): Promise<void> => {
+      try {
+        // Check multiple possible locations for the API key
+        const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || 
+                       (process.env.GEMINI_API_KEY as string) || 
+                       (import.meta.env.GEMINI_API_KEY as string);
+        
+        const isPlaceholder = apiKey === "MY_GEMINI_API_KEY";
+        const isEmpty = !apiKey || apiKey.trim() === "";
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING, description: "The name in original script (Arabic/Persian/etc)" },
-                transliteration: { type: Type.STRING, description: "The English transliteration" },
-                meaning: { type: Type.STRING, description: "The meaning of the name" },
-                origin: { type: Type.STRING, description: "The linguistic origin" },
-                gender: { type: Type.STRING, enum: ["Boy", "Girl", "Unisex"] },
-                significance: { type: Type.STRING, description: "Brief historical or religious significance" }
-              },
-              required: ["name", "transliteration", "meaning", "origin", "gender"]
+        if (isEmpty || isPlaceholder) {
+          const debugInfo = `
+            Debug Info:
+            - VITE_GEMINI_API_KEY: ${!!import.meta.env.VITE_GEMINI_API_KEY ? 'Detected' : 'Not Found'}
+            - process.env.GEMINI_API_KEY: ${!!process.env.GEMINI_API_KEY ? 'Detected' : 'Not Found'}
+          `;
+          
+          throw new Error("API Key is missing or invalid. \n" + debugInfo + "\n" +
+            "To fix this on Vercel:\n" +
+            "1. Go to Project Settings > Environment Variables\n" +
+            "2. Add 'VITE_GEMINI_API_KEY' with your Google AI API Key\n" +
+            "3. Go to Deployments and trigger a 'Redeploy' (without cache).");
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+        
+        const prompt = `Generate ${batchSize} beautiful and meaningful Muslim baby names.
+        ${gender !== 'Both' ? `Gender: ${gender}` : ''}
+        ${startingLetter ? `Starting with the letter: ${startingLetter}` : ''}
+        ${theme ? `Theme/Meaning preference: ${theme}` : ''}
+        
+        Provide the names in a structured format including the Arabic/Original script, transliteration, meaning, origin (e.g., Arabic, Persian, Turkish), and a brief note on its significance or historical context. 
+        Ensure the names are unique and diverse.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING, description: "The name in original script (Arabic/Persian/etc)" },
+                  transliteration: { type: Type.STRING, description: "The English transliteration" },
+                  meaning: { type: Type.STRING, description: "The meaning of the name" },
+                  origin: { type: Type.STRING, description: "The linguistic origin" },
+                  gender: { type: Type.STRING, enum: ["Boy", "Girl", "Unisex"] },
+                  significance: { type: Type.STRING, description: "Brief historical or religious significance" }
+                },
+                required: ["name", "transliteration", "meaning", "origin", "gender"]
+              }
             }
           }
+        });
+
+        if (!response.text) {
+          throw new Error("The AI returned an empty response. This can happen if the prompt was flagged by safety filters or if the model is temporarily unavailable.");
         }
-      });
 
-      if (!response.text) {
-        throw new Error("The AI returned an empty response. This can happen if the prompt was flagged by safety filters or if the model is temporarily unavailable.");
-      }
+        const data = JSON.parse(response.text);
+        if (append) {
+          setResults(prev => [...prev, ...data]);
+        } else {
+          setResults(data);
+        }
+      } catch (err: any) {
+        // Handle 429 Rate Limit with retries
+        if (err.message?.includes("429") && retryCount < maxRetries) {
+          retryCount++;
+          const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
+          setError(`Rate limit hit. Retrying in ${delay/1000} seconds... (Attempt ${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return attemptGeneration();
+        }
 
-      const data = JSON.parse(response.text);
-      if (append) {
-        setResults(prev => [...prev, ...data]);
-      } else {
-        setResults(data);
+        console.error("Generation failed:", err);
+        
+        let friendlyMessage = err.message || "An unexpected error occurred.";
+        
+        if (err.message?.includes("403")) {
+          friendlyMessage = "API Key Error (403): Your API key might be invalid, or your project might not have access to the Gemini API in your current region.";
+        } else if (err.message?.includes("429")) {
+          friendlyMessage = "Rate Limit Exceeded (429): Too many requests. Please wait a moment before trying again or use a smaller batch size.";
+        } else if (err.message?.includes("fetch")) {
+          friendlyMessage = "Network Error: Could not connect to the Google AI API. Please check your internet connection.";
+        }
+        
+        setError(friendlyMessage);
       }
-    } catch (err: any) {
-      console.error("Generation failed:", err);
-      
-      let friendlyMessage = err.message || "An unexpected error occurred.";
-      
-      if (err.message?.includes("403")) {
-        friendlyMessage = "API Key Error (403): Your API key might be invalid, or your project might not have access to the Gemini API in your current region.";
-      } else if (err.message?.includes("429")) {
-        friendlyMessage = "Rate Limit Exceeded (429): Too many requests. Please wait a moment before trying again.";
-      } else if (err.message?.includes("fetch")) {
-        friendlyMessage = "Network Error: Could not connect to the Google AI API. Please check your internet connection.";
-      }
-      
-      setError(friendlyMessage);
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    await attemptGeneration();
+    setLoading(false);
   };
 
   const toggleFavorite = (nameObj: NameResult) => {
@@ -666,8 +698,32 @@ export default function App() {
         </div>
       </section>
 
-      <footer className="mt-12 text-center text-stone-400 text-sm serif italic">
+      <footer className="mt-12 text-center text-stone-400 text-sm serif italic space-y-4">
         <p>&copy; {new Date().getFullYear()} Noor Names. May your child be a light in this world.</p>
+        
+        <button 
+          onClick={() => setShowDebug(!showDebug)}
+          className="text-[10px] uppercase tracking-widest font-bold opacity-30 hover:opacity-100 transition-opacity"
+        >
+          {showDebug ? 'Hide Debug Info' : 'Show Debug Info'}
+        </button>
+
+        <AnimatePresence>
+          {showDebug && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="bg-stone-100 p-4 rounded-2xl text-left font-mono text-[10px] text-stone-500 max-w-xs mx-auto border border-stone-200"
+            >
+              <p className="font-bold mb-1 border-bottom border-stone-200 pb-1">Environment Check:</p>
+              <p>VITE_KEY: {!!import.meta.env.VITE_GEMINI_API_KEY ? '✅ Detected' : '❌ Missing'}</p>
+              <p>PROC_KEY: {!!process.env.GEMINI_API_KEY ? '✅ Detected' : '❌ Missing'}</p>
+              <p>URL: {window.location.hostname}</p>
+              <p className="mt-2 text-[9px] leading-tight">If 'Missing' on main URL but 'Detected' on deployment URL, check Vercel Production scope.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </footer>
 
       <style>{`
