@@ -70,10 +70,11 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      // Check both standard Vite and the process.env shim
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
       
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
-        throw new Error("API Key is missing. Please ensure GEMINI_API_KEY is set in your environment variables (Vercel/cPanel).");
+        throw new Error("API Key is missing. Please ensure VITE_GEMINI_API_KEY is set in your Vercel/cPanel environment variables.");
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -110,7 +111,7 @@ export default function App() {
       });
 
       if (!response.text) {
-        throw new Error("No response received from AI. Please try again.");
+        throw new Error("The AI returned an empty response. This can happen if the prompt was flagged by safety filters or if the model is temporarily unavailable.");
       }
 
       const data = JSON.parse(response.text);
@@ -121,7 +122,18 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Generation failed:", err);
-      setError(err.message || "An unexpected error occurred. Please check your connection and API key.");
+      
+      let friendlyMessage = err.message || "An unexpected error occurred.";
+      
+      if (err.message?.includes("403")) {
+        friendlyMessage = "API Key Error (403): Your API key might be invalid, or your project might not have access to the Gemini API in your current region.";
+      } else if (err.message?.includes("429")) {
+        friendlyMessage = "Rate Limit Exceeded (429): Too many requests. Please wait a moment before trying again.";
+      } else if (err.message?.includes("fetch")) {
+        friendlyMessage = "Network Error: Could not connect to the Google AI API. Please check your internet connection.";
+      }
+      
+      setError(friendlyMessage);
     } finally {
       setLoading(false);
     }
